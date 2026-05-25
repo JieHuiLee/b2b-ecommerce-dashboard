@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Upload, Folder, FolderOpen, AlertTriangle, Copy, Check, GripVertical, FileText, ArrowRight, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import JSZip from 'jszip';
+import { Upload, Folder, FolderOpen, AlertTriangle, Copy, Check, GripVertical, FileText, ArrowRight, Loader2, Trash2 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 // 保持你原有的基础数据配置
@@ -26,7 +27,6 @@ interface ManagedFile {
 
 // 你的后端 GAS 部署后的 Web App URL (请在步骤二部署后替换此处)
 // 动态读取本地或线上托管平台的安全环境变量
-const GAS_WEB_APP_URL = import.meta.env.VITE_GAS_WEB_APP_URL || "";
 
 export function FileSubmissionSection() {
   const [selectedBrand, setSelectedBrand] = useState('Dr Smile');
@@ -101,6 +101,10 @@ export function FileSubmissionSection() {
     setManagedFiles(items);
   };
 
+  const handleDeleteFile = (id: string) => {
+    setManagedFiles((prev) => prev.filter((file) => file.id !== id));
+  };
+
   // 一键复制预览信息
   const handleCopy = () => {
     const summary = managedFiles.map((file, i) => `File ${i+1}: ${formatSingleFileName(file, i)}`).join('\n');
@@ -111,19 +115,7 @@ export function FileSubmissionSection() {
   };
 
   // 核心：将文件转换为 Base64 并真实上传到 Google Drive (通过 GAS)
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const handleFormatAndUpload = async () => {
+  const handleDownloadAllAsZip = async () => {
     if (managedFiles.length === 0) {
       alert("Please upload at least one file first.");
       return;
@@ -133,62 +125,32 @@ export function FileSubmissionSection() {
     setUploadStatus(null);
 
     try {
-      // 循环顺序上传各个文件，确保严格按照前端排好的队列执行
+      const zip = new JSZip();
       for (let i = 0; i < managedFiles.length; i++) {
         const fileItem = managedFiles[i];
         const finalName = formatSingleFileName(fileItem, i);
-        const base64Data = await fileToBase64(fileItem.fileObject);
-
-        // 构造发送给 Google Apps Script 后端的 Payload
-        const payload = {
-          brand: selectedBrand,
-          month: selectedMonth,
-          type: selectedType.split(' ')[0],
-          folderPath: generateFolderPath(),
-          fileName: finalName,
-          mimeType: fileItem.fileObject.type,
-          fileData: base64Data
-        };
-
-        // 使用 fetch 发送到后端的 Web App 节点
-        const response = await fetch(GAS_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors', // 配合 GAS 跨域重定向特性
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        const bytes = await fileItem.fileObject.arrayBuffer();
+        zip.file(finalName, bytes);
       }
 
-      setUploadStatus({ success: true, message: `Successfully processed ${managedFiles.length} files.` });
-      setManagedFiles([]); // 上传成功后清空文件队列
-    } catch (error) {
-      console.error(error);
-      setUploadStatus({ success: false, message: "Upload failed. Please verify Google Apps Script deployment configurations." });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // 过渡方案：先支持本地批量下载重命名后的文件
-  const handleFormatAndDownload = () => {
-    if (managedFiles.length === 0) {
-      alert("Please upload at least one file first.");
-      return;
-    }
-
-    managedFiles.forEach((file, index) => {
-      const renamedFile = new File([file.fileObject], formatSingleFileName(file, index), {
-        type: file.fileObject.type,
-      });
-      const url = URL.createObjectURL(renamedFile);
-      const a = document.createElement("a");
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const zipName = `${selectedMonth}_${selectedType.split(' ')[0]}_${selectedBrand.replace(/\s+/g, '')}_${campaignName.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_') || 'Files'}.zip`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
       a.href = url;
-      a.download = renamedFile.name;
+      a.download = zipName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    });
+
+      setUploadStatus({ success: true, message: `Downloaded ZIP with ${managedFiles.length} files.` });
+    } catch (error) {
+      console.error(error);
+      setUploadStatus({ success: false, message: 'ZIP download failed. Please try again.' });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -303,6 +265,16 @@ export function FileSubmissionSection() {
                                     </span>
                                   </div>
                                 </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteFile(file.id)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                                  aria-label={`Delete ${file.originalName}${file.extension}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Delete
+                                </button>
                               </div>
                             )}
                           </Draggable>
@@ -350,31 +322,21 @@ export function FileSubmissionSection() {
           </div>
 
           {/* 步骤 3: 触发执行上传 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div className="mb-4">
             <button
-              onClick={handleFormatAndDownload}
-              disabled={managedFiles.length === 0}
-              className={`w-full text-white font-bold py-3 rounded-lg transition-colors ${
-                managedFiles.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#0F766E] hover:bg-[#0D5E58]'
-              }`}
-            >
-              Format Name & Download Files
-            </button>
-
-            <button
-              onClick={handleFormatAndUpload}
+              onClick={handleDownloadAllAsZip}
               disabled={isUploading || managedFiles.length === 0}
               className={`w-full text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                isUploading || managedFiles.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#4F46E5] hover:bg-[#4338CA]'
+                isUploading || managedFiles.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#0F766E] hover:bg-[#0D5E58]'
               }`}
             >
               {isUploading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Uploading...
+                  Preparing ZIP...
                 </>
               ) : (
-                "Download"
+                "Download All Files (ZIP)"
               )}
             </button>
           </div>
