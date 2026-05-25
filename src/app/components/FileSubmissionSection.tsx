@@ -169,6 +169,28 @@ export function FileSubmissionSection() {
     }
   };
 
+  // 过渡方案：先支持本地批量下载重命名后的文件
+  const handleFormatAndDownload = () => {
+    if (managedFiles.length === 0) {
+      alert("Please upload at least one file first.");
+      return;
+    }
+
+    managedFiles.forEach((file, index) => {
+      const renamedFile = new File([file.fileObject], formatSingleFileName(file, index), {
+        type: file.fileObject.type,
+      });
+      const url = URL.createObjectURL(renamedFile);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = renamedFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  };
+
   return (
     <section className="max-w-7xl mx-auto px-6 py-12">
       <div className="mb-8">
@@ -328,22 +350,34 @@ export function FileSubmissionSection() {
           </div>
 
           {/* 步骤 3: 触发执行上传 */}
-          <button
-            onClick={handleFormatAndUpload}
-            disabled={isUploading || managedFiles.length === 0}
-            className={`w-full text-white font-bold py-3 rounded-lg transition-colors mb-4 flex items-center justify-center gap-2 ${
-              isUploading || managedFiles.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#4F46E5] hover:bg-[#4338CA]'
-            }`}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Formatting & Direct Uploading to Google Drive...
-              </>
-            ) : (
-              "Format Name & Secure Upload to G-Drive"
-            )}
-          </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <button
+              onClick={handleFormatAndDownload}
+              disabled={managedFiles.length === 0}
+              className={`w-full text-white font-bold py-3 rounded-lg transition-colors ${
+                managedFiles.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#0F766E] hover:bg-[#0D5E58]'
+              }`}
+            >
+              Format Name & Download Files
+            </button>
+
+            <button
+              onClick={handleFormatAndUpload}
+              disabled={isUploading || managedFiles.length === 0}
+              className={`w-full text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                isUploading || managedFiles.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#4F46E5] hover:bg-[#4338CA]'
+              }`}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Format Name & Secure Upload to G-Drive"
+              )}
+            </button>
+          </div>
 
           {/* 上传反馈状态框 */}
           {uploadStatus && (
