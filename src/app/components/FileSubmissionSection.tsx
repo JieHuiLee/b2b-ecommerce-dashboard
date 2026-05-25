@@ -159,7 +159,7 @@ export function FileSubmissionSection() {
         });
       }
 
-      setUploadStatus({ success: true, message: `Successfully structured and uploaded ${managedFiles.length} files to Google Drive!` });
+      setUploadStatus({ success: true, message: `Successfully processed ${managedFiles.length} files.` });
       setManagedFiles([]); // 上传成功后清空文件队列
     } catch (error) {
       console.error(error);
@@ -374,7 +374,7 @@ export function FileSubmissionSection() {
                   Uploading...
                 </>
               ) : (
-                "Format Name & Secure Upload to G-Drive"
+                "Download"
               )}
             </button>
           </div>
@@ -389,7 +389,7 @@ export function FileSubmissionSection() {
           {/* 路径与总体预览区 */}
           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-bold text-indigo-900 uppercase tracking-wide">Target G-Drive Destination</div>
+              <div className="text-xs font-bold text-indigo-900 uppercase tracking-wide">Target Folder Path Preview</div>
               <button onClick={handleCopy} className="px-2 py-1 bg-white border border-indigo-300 text-indigo-700 rounded text-xs flex items-center gap-1">
                 {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />} Copy Details
               </button>
