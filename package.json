@@ -1,12 +1,15 @@
 {
   "name": "@figma/my-make-file",
+  "homepage": "https://jiehuilee.github.io/b2b-ecommerce-dashboard",
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "scripts": {
-    "build": "vite build",
-    "dev": "vite"
-  },
+ "scripts": {
+  "start": "react-scripts start",
+  "build": "react-scripts build",
+  "predeploy": "npm run build",
+  "deploy": "gh-pages -d build"
+}
   "dependencies": {
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
